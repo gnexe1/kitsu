@@ -68,6 +68,8 @@ class Shell:
         )
         self._voice_session = None
         self._voice_initialized = False
+        self._planner = None
+        self._ai_context_builder = None
         self._state.set_status(PopalStatus.READY)
 
     def _create_adapter(self):
@@ -224,6 +226,17 @@ class Shell:
                 continue
             if cmd_lower == "voice status":
                 self._handle_voice_status()
+                continue
+
+            # AI commands
+            if cmd_lower == "ai status":
+                self._handle_ai_status()
+                continue
+            if line.lower().startswith("ai plan "):
+                self._handle_ai_plan(line[8:].strip().strip('"').strip("'"))
+                continue
+            if line.lower().startswith("ai execute "):
+                self._handle_ai_execute(line[11:].strip().strip('"').strip("'"))
                 continue
 
             self._handle_command(line)
@@ -468,6 +481,11 @@ Voice commands:
   voice listen                         Push-to-talk: record and execute
   voice stop                           Stop voice session
   voice status                         Show voice status
+
+AI commands:
+  ai status                            Show AI brain status
+  ai plan "<request>"                  Plan (do NOT execute) a request
+  ai execute "<request>"               Plan AND execute through safety pipeline
 """)
 
     def _print_status(self) -> None:
@@ -487,3 +505,80 @@ Voice commands:
         for t in tools:
             print(f"  {t.name:<25} risk={t.risk_level.value:<12} {t.description}")
         print()
+
+    # --- AI Brain ---
+
+    def _get_planner(self):
+        """Lazy-initialize the AI planner."""
+        if self._planner is not None:
+            return self._planner
+        try:
+            from popal.ai.context import ContextBuilder
+            from popal.ai.planner import Planner
+            from popal.ai.providers.local import LocalProvider
+
+            provider = LocalProvider()
+            self._planner = Planner(provider)
+            self._ai_context_builder = ContextBuilder()
+            return self._planner
+        except Exception as exc:
+            logger.error("AI planner init failed: %s", exc)
+            return None
+
+    def _handle_ai_status(self) -> None:
+        planner = self._get_planner()
+        ai_cfg = self._config.get("ai", {})
+        print(f"\nAI Brain:")
+        print(f"  Enabled  : {ai_cfg.get('enabled', False)}")
+        print(f"  Provider : {ai_cfg.get('provider', 'local')}")
+        if planner:
+            print(f"  Available: {planner.is_available}")
+            print(f"  Provider : {planner.provider_name}")
+        else:
+            print(f"  Available: False (not initialized)")
+        print(f"  Max steps: {ai_cfg.get('max_plan_steps', 10)}")
+        print()
+
+    def _handle_ai_plan(self, request: str) -> None:
+        if not request:
+            print("Usage: ai plan \"<request>\"")
+            return
+        planner = self._get_planner()
+        if not planner:
+            print("AI planner not available.")
+            return
+        from popal.ai.context import AIContext
+        ctx = AIContext(platform=self._platform_info.summary())
+        plan = planner.plan(request, ctx)
+        import json
+        print(json.dumps(plan.to_dict(), indent=2))
+
+    def _handle_ai_execute(self, request: str) -> None:
+        if not request:
+            print("Usage: ai execute \"<request>\"")
+            return
+        planner = self._get_planner()
+        if not planner:
+            print("AI planner not available.")
+            return
+        from popal.ai.context import AIContext
+        from popal.ai.response import format_response
+        from popal.core.command import CommandSource
+        ctx = AIContext(platform=self._platform_info.summary())
+        plan = planner.plan(request, ctx)
+
+        if not plan.is_executable:
+            result = format_response(plan, ())
+            print(result.response_text)
+            return
+
+        step_results = []
+        for step in plan.steps:
+            cmd = step.to_command(source=CommandSource.AI)
+            tr = self._executor.execute(cmd)
+            step_results.append(tr)
+            if not tr.success:
+                break
+
+        result = format_response(plan, tuple(step_results))
+        print(result.response_text)

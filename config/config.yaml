@@ -68,3 +68,14 @@ computer:
     save_to_disk: false         # privacy: screenshots stay in memory by default
   input_lock:
     timeout_seconds: 5
+
+ai:
+  enabled: false                # AI brain disabled by default
+  provider: "local"             # "local" (deterministic), or future: "openai", "anthropic", "ollama"
+  model: ""
+  temperature: 0.0
+  max_tokens: 2048
+  timeout_seconds: 30
+  max_plan_steps: 10
+  max_context_messages: 10
+  max_context_chars: 12000
