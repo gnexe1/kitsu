@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "popal"
-version = "0.1.0"
+version = "0.2.0"
 description = "POPAL — Personal AI Computer Agent"
 readme = "README.md"
 license = {text = "MIT"}
@@ -26,6 +26,14 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0",
+]
+voice = [
+    "sounddevice>=0.4",
+    "numpy>=1.24",
+    "faster-whisper>=1.0",
+    "pyttsx3>=2.90",
+    "openwakeword>=0.4",
+    "onnxruntime>=1.16",
 ]
 
 [project.scripts]

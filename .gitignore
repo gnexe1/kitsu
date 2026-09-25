@@ -53,3 +53,6 @@ coverage.xml
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
+
+# Local extracted system libraries
+lib/

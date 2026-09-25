@@ -13,3 +13,51 @@ safety:
 logging:
   enabled: true
   directory: "data/logs"
+
+voice:
+  enabled: false
+  sample_rate: 16000
+  activation_mode: "push_to_talk"   # "push_to_talk" or "wake_word"
+
+  microphone:
+    device_index: null              # null = system default
+    buffer_seconds: 10
+
+  vad:
+    provider: "silero"              # "silero" or "energy"
+    threshold: 0.5
+
+  stt:
+    provider: "faster_whisper"      # "faster_whisper" (local/offline)
+    model_size: "base"              # "tiny", "base", "small", "medium", "large-v3"
+    device: "cpu"
+    compute_type: "int8"
+    language: "en"
+
+  wake_word:
+    enabled: false                  # experimental — no custom "hey popal" model
+    provider: "openwakeword"
+    model_name: "hey_jarvis"
+    threshold: 0.5
+
+  tts:
+    provider: "pyttsx3"
+    muted: false
+    volume: 1.0
+    rate: 175
+
+  timeouts:
+    max_listen_seconds: 10
+    silence_timeout_seconds: 2
+    min_audio_seconds: 0.5
+
+  privacy:
+    save_recordings: false
+    recording_directory: "data/recordings"
+
+  command_aliases:
+    vs code: "code"
+    vscode: "code"
+    visual studio code: "code"
+    chrome: "google-chrome"
+    google chrome: "google-chrome"
