@@ -61,3 +61,10 @@ voice:
     visual studio code: "code"
     chrome: "google-chrome"
     google chrome: "google-chrome"
+
+computer:
+  provider: "auto"              # "auto", "linux", "windows"
+  screenshot:
+    save_to_disk: false         # privacy: screenshots stay in memory by default
+  input_lock:
+    timeout_seconds: 5

@@ -1,70 +1,75 @@
 # POPAL — Personal AI Computer Agent
 
-POPAL is a cross-platform personal AI computer agent designed to work as a highly capable desktop assistant. It provides a clean, modular, and secure foundation for natural language computer control.
+POPAL is a cross-platform personal AI computer agent designed to work as a highly capable desktop assistant.
 
-## What's New in Phase 1
+## What's New in Phase 2
 
-Phase 1 adds a complete **voice interface** with push-to-talk activation:
+Phase 2 adds the **Computer Control Foundation** — safe, controlled mouse, keyboard, screen, window, and application management:
 
-- **Microphone capture** via sounddevice (PortAudio)
-- **Voice Activity Detection** via Silero VAD (with energy-based fallback)
-- **Speech-to-text** via faster-whisper (local, offline, CPU-based)
-- **Deterministic command parser** with configurable app aliases
-- **Text-to-speech** via pyttsx3
-- **Voice session manager** orchestrating the full pipeline
-- All voice commands pass through the existing safety/executor pipeline
+- **Mouse control** — position, move, click, double-click, right-click, scroll
+- **Keyboard control** — type text, press keys, hotkey combinations
+- **Screen capture** — full screen and region capture (stays in memory, not saved)
+- **Window management** — list, focus, minimize, maximize, restore, close
+- **Application control** — open, close, list, focus, running check
+- **Input lock** — prevents conflicting concurrent operations
+- All actions pass through the existing safety/executor pipeline
 
-> Wake-word detection ("Hey Popal") is experimental — no custom model exists.
-> Push-to-talk is the primary activation method.
+### Platform Support
+
+| Capability | Linux (X11/XWayland) | Linux (Wayland native) | Windows |
+|------------|---------------------|----------------------|---------|
+| Mouse | pynput | Planned (ydotool) | Win32 SendInput |
+| Keyboard | pynput | Planned (ydotool) | Win32 SendInput |
+| Screenshots | mss | mss | mss |
+| Windows | wmctrl + xdotool | Limited | Win32 API |
+| Applications | subprocess | subprocess | subprocess |
+
+> Linux: Tested on Ubuntu with XWayland. Window management requires `wmctrl`.
+> Windows: Provider exists but is NOT verified on actual Windows hardware.
 
 ## Project Goals
 
-POPAL is being built incrementally. The long-term vision includes:
-
 - ~~Voice control and speech-to-text~~ (Phase 1)
+- ~~Computer control (mouse, keyboard, screen, windows)~~ (Phase 2)
 - Natural language command understanding
 - Computer vision and screen awareness
 - Hand/finger gesture control
-- Keyboard and mouse automation
-- Application-level interaction
-- File and system management
 - Cross-platform support (Windows + Linux)
 - Long-term memory and learning
 - AI planning and reasoning
 - Strict safety and permission controls
-- Verification of every important action
 
 ## Architecture
 
 ```
-Voice Input (Microphone)
-    |
-VAD (Voice Activity Detection)
-    |
-STT (Speech-to-Text)
-    |
-Deterministic Command Parser
-    |
-Structured Command
-    |
-Command Validation
-    |
-Safety Engine
-    |
-Permission Check
-    |
-Confirmation (if required)
-    |
-Tool System
-    |
-Platform Adapter
-    |
-Windows / Linux
-    |
-TTS Response
+Voice Input  →  VAD  →  STT  →  Command Parser
+                                    |
+                              Structured Command
+                                    |
+                            Command Validation
+                                    |
+                              Safety Engine
+                                    |
+                            Permission Check
+                                    |
+                         Confirmation (if required)
+                                    |
+                              Tool Registry
+                                    |
+                       ┌────────────┼────────────┐
+                       │            │            │
+                   System       Voice       Computer
+                   Tools        Tools        Control
+                       │            │            │
+                  Platform     Microphone    Mouse/KB/Screen
+                  Adapter      STT/TTS       Window/App
+                       │                       │
+                  ┌────┴────┐            ┌─────┴─────┐
+                  │         │            │           │
+               Linux    Windows       Linux      Windows
 ```
 
-All voice commands pass through POPAL's existing safety pipeline. The AI never directly executes OS commands.
+All commands pass through POPAL's safety pipeline. No unrestricted execution.
 
 ### Module Structure
 
@@ -72,22 +77,23 @@ All voice commands pass through POPAL's existing safety pipeline. The AI never d
 src/popal/
 ├── core/          Command processing, execution, routing, state
 ├── safety/        Policies, permissions, confirmation
-├── tools/         Base tool interface, registry, built-in tools
+├── tools/         Base tool interface, registry
 ├── platform/      OS detection, Windows/Linux adapters
-├── ai/            Brain and planner (placeholder)
+├── computer/      Computer control (Phase 2)
+│   ├── mouse.py          Abstract mouse interface
+│   ├── keyboard.py       Abstract keyboard interface
+│   ├── screen.py         Abstract screen interface
+│   ├── window.py         Abstract window interface
+│   ├── application.py    Abstract application interface
+│   ├── tools.py          Computer control tools for registry
+│   ├── input_lock.py     Concurrent operation lock
+│   ├── types.py          MousePosition, ScreenSize, WindowInfo, etc.
+│   ├── errors.py         Error types
+│   └── providers/        Platform implementations
+│       ├── linux_provider.py    pynput + mss + wmctrl
+│       └── windows_provider.py  Win32 APIs (untested)
 ├── voice/         Voice system (Phase 1)
-│   ├── providers/    Concrete implementations
-│   │   ├── audio_device_provider.py   Sounddevice device manager
-│   │   ├── microphone_provider.py     Microphone capture
-│   │   ├── silero_vad_provider.py     Silero VAD
-│   │   ├── faster_whisper_stt.py      Whisper STT
-│   │   ├── pyttsx3_tts.py            Text-to-speech
-│   │   ├── oww_wake_word.py          OpenWakeWord (experimental)
-│   │   └── deterministic_parser.py    Command parser
-│   ├── session.py     Voice session manager
-│   ├── types.py       Data types (VoiceState, TranscriptionResult, etc.)
-│   ├── errors.py      Voice-specific errors
-│   └── [interface].py Abstract interfaces
+├── ai/            Brain and planner (placeholder)
 ├── vision/        Computer vision (placeholder)
 ├── gestures/      Hand/gesture control (placeholder)
 ├── memory/        SQLite database foundation
@@ -102,120 +108,86 @@ src/popal/
 - Python 3.12+
 - pip
 - PortAudio library (`libportaudio2` on Ubuntu/Debian)
+- `wmctrl` for window management on Linux (`sudo apt install wmctrl`)
 
 ### Install
 
 ```bash
 cd POPAL
-pip install -e .
-```
-
-With voice support:
-
-```bash
-pip install -e ".[voice]"
-```
-
-With dev dependencies:
-
-```bash
 pip install -e ".[dev,voice]"
 ```
 
-### Ubuntu/Debian system dependency
-
-```bash
-sudo apt install libportaudio2
-```
-
-### Faster Whisper model download
-
-The first time you use voice, faster-whisper will download the STT model (~150MB for "base"). This happens automatically.
+Computer control dependencies (pynput, mss) are installed automatically with the voice extras.
 
 ## Running POPAL
 
-### As a module
-
 ```bash
 python -m popal
-```
-
-### As a CLI command
-
-```bash
+# or
 popal
 ```
 
-### CLI Commands
+### CLI Commands — Computer Control
 
 | Command | Description |
 |---------|-------------|
-| `help` | Show available commands |
-| `status` | Display current POPAL status |
-| `tools` | List registered tools |
-| `stop` | Trigger emergency stop |
-| `resume` | Resume from emergency stop |
-| `exit` / `quit` | Leave POPAL |
+| `mouse position` | Get cursor position |
+| `mouse move 500 300` | Move cursor to (500, 300) |
+| `mouse click` | Left click |
+| `mouse double-click` | Double-click |
+| `mouse right-click` | Right-click |
+| `mouse scroll down` | Scroll down |
+| `keyboard type hello world` | Type literal text |
+| `keyboard press enter` | Press Enter key |
+| `keyboard hotkey ctrl+c` | Press Ctrl+C |
+| `screen size` | Get screen dimensions |
+| `screen screenshot` | Capture screenshot (in memory) |
+| `window list` | List visible windows |
+| `window active` | Show active window |
 
-### Tool Commands
-
-| Command | Description |
-|---------|-------------|
-| `system_info` | Retrieve system information |
-| `open_application <name>` | Open an application |
-| `close_application <name>` | Close an application |
-| `list_applications` | List running applications |
-
-### Voice Commands (Phase 1)
-
-| Command | Description |
-|---------|-------------|
-| `voice devices` | List audio input devices |
-| `voice test` | Test microphone recording |
-| `voice listen` | Push-to-talk: record, transcribe, and execute |
-| `voice stop` | Stop voice session |
-| `voice status` | Show voice system status |
-
-### Supported Voice Phrases
+### Supported Voice Phrases (Computer Control)
 
 | Phrase | Action |
 |--------|--------|
-| "Open VS Code" | Opens Visual Studio Code |
-| "Open Firefox" | Opens Firefox |
-| "Close Chrome" | Closes Google Chrome |
-| "List applications" | Lists running apps |
-| "System info" | Shows system information |
-| "Hey Popal, open terminal" | Opens terminal (strips wake word) |
+| "Click" | Left click |
+| "Double click" | Double-click |
+| "Right click" | Right-click |
+| "Move 500 300" | Move mouse to (500, 300) |
+| "Scroll down" | Scroll mouse wheel down |
+| "Type hello world" | Type literal text |
+| "Press enter" | Press Enter key |
+| "Take screenshot" | Capture screen |
+| "List windows" | Show open windows |
 
 ## Safety Model
 
-POPAL implements a multi-layer safety pipeline:
+Computer control risk classifications:
 
-1. **Command Validation** — Every command must have a valid intent and structure.
-2. **Risk Classification** — Tools declare their risk level: `SAFE`, `CONTROLLED`, or `DESTRUCTIVE`.
-3. **Safety Policy** — Evaluates whether the tool is allowed based on risk level and configuration.
-4. **Permission Check** — Verifies the current session has permission for the operation.
-5. **Confirmation** — Controlled and destructive actions require explicit user confirmation.
-6. **Emergency Stop** — A global stop mechanism that halts all command execution.
+| Risk Level | Tools |
+|------------|-------|
+| **SAFE** | mouse_position, screen_size, screen_screenshot, window_list, window_active |
+| **CONTROLLED** | mouse_move, mouse_click, keyboard_type, keyboard_press, keyboard_hotkey, window_focus/minimize/maximize/restore |
+| **DESTRUCTIVE** | window_close |
 
-Voice-specific safety:
-- Transcribed speech is treated as untrusted input.
-- Empty or low-confidence transcripts are rejected.
-- Unknown commands are not executed.
-- All voice commands pass through the same safety pipeline as CLI commands.
-- Audio is not saved to disk by default.
+Additional safety measures:
+- Invalid coordinates are rejected
+- `type_text()` only types literal text — never executes or presses Enter
+- Screenshots stay in memory by default, never saved/uploaded
+- Input lock prevents conflicting operations
+- Emergency stop halts all computer control
 
 ## Configuration
 
-POPAL uses `config/config.yaml` for all settings. Voice configuration includes microphone device, STT model, language, VAD settings, TTS options, wake-word settings, timeouts, and privacy controls.
+Computer control section in `config/config.yaml`:
 
-## Platform Support
-
-| Platform | Status |
-|----------|--------|
-| Ubuntu/Linux | Supported (tested) |
-| Windows | Adapter present, voice untested |
-| Other Linux distros | Architecture allows future support |
+```yaml
+computer:
+  provider: "auto"          # "auto", "linux", "windows"
+  screenshot:
+    save_to_disk: false     # privacy default
+  input_lock:
+    timeout_seconds: 5
+```
 
 ## Running Tests
 
@@ -223,22 +195,16 @@ POPAL uses `config/config.yaml` for all settings. Voice configuration includes m
 pytest
 ```
 
-Or with verbose output:
-
-```bash
-pytest -v
-```
-
 ## Development Roadmap
 
 | Phase | Description | Status |
 |-------|-------------|--------|
 | **Phase 0** | Foundation and system architecture | Complete |
-| **Phase 1** | Voice system (speech-to-text) | Current |
-| Phase 2 | AI brain integration | Planned |
-| Phase 3 | Computer vision | Planned |
-| Phase 4 | Gesture control | Planned |
-| Phase 5 | Advanced memory and learning | Planned |
+| **Phase 1** | Voice system (speech-to-text) | Complete |
+| **Phase 2** | Computer control foundation | Current |
+| Phase 3 | AI brain integration | Planned |
+| Phase 4 | Computer vision | Planned |
+| Phase 5 | Gesture control | Planned |
 
 ## License
 

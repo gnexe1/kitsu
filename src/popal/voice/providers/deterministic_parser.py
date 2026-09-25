@@ -36,11 +36,30 @@ _DEFAULT_ALIASES: dict[str, str] = {
 
 # Intent patterns: (regex, intent_name, target_group_index)
 _PATTERNS: list[tuple[str, str, int | None]] = [
+    # Application control
     (r"^(?:open|launch|start)\s+(.+)$", "open_application", 1),
-    (r"^(?:close|quit|exit|kill|stop)\s+(.+)$", "close_application", 1),
+    (r"^(?:close|quit|exit|kill)\s+(.+)$", "close_application", 1),
     (r"^(?:list|show)\s+(?:running\s+)?(?:applications?|apps?)$", "list_applications", None),
     (r"^(?:system\s+)?(?:info|information)$", "system_info", None),
     (r"^(?:what(?:'s| is) (?:my|the) (?:system|computer) (?:info|information|status))$", "system_info", None),
+    # Computer control — mouse
+    (r"^(?:move|go)\s+(?:mouse\s+)?(?:to\s+)?(\d+)\s+(\d+)$", "mouse_move_coords", None),
+    (r"^(?:get\s+)?(?:mouse\s+)?position$", "mouse_position", None),
+    (r"^double\s*click$", "mouse_double_click", None),
+    (r"^right\s*click$", "mouse_right_click", None),
+    (r"^click$", "mouse_click", None),
+    (r"^(?:scroll)\s+(up|down|left|right)$", "mouse_scroll", 1),
+    # Computer control — keyboard
+    (r"^type\s+(.+)$", "keyboard_type", 1),
+    (r"^press\s+(.+)$", "keyboard_press", 1),
+    # Computer control — screen
+    (r"^(?:take\s+)?screenshot$", "screen_screenshot", None),
+    (r"^screen\s*size$", "screen_size", None),
+    # Computer control — window
+    (r"^(?:list|show)\s+windows?$", "window_list", None),
+    (r"^(?:what(?:'s| is) (?:the\s+)?active\s+window)$", "window_active", None),
+    (r"^(?:minimize)\s+(?:the\s+)?window$", "window_minimize_cmd", None),
+    (r"^(?:maximize)\s+(?:the\s+)?window$", "window_maximize_cmd", None),
 ]
 
 
@@ -78,6 +97,9 @@ class DeterministicVoiceCommandParser(VoiceCommandParser):
                 if target_group is not None:
                     raw_target = match.group(target_group).strip()
                     target = self._resolve_alias(raw_target)
+
+                # Handle computer control intents with special parameter needs
+                intent, target, extra_params = self._post_process(intent, target, match)
 
                 logger.info("Parsed command: intent=%s, target=%s (from '%s')", intent, target, transcript)
                 return ParsedVoiceCommand(
@@ -117,3 +139,35 @@ class DeterministicVoiceCommandParser(VoiceCommandParser):
         """Add or update an application alias at runtime."""
         self._aliases[alias.lower()] = target
         logger.info("Alias added: '%s' -> '%s'", alias, target)
+
+    @staticmethod
+    def _post_process(intent: str, target: str, match: re.Match) -> tuple[str, str, dict]:
+        """Post-process parsed intents for computer control commands.
+
+        Returns (real_intent, target, extra_params).
+        """
+        # Mouse move with coordinates: "move 500 300"
+        if intent == "mouse_move_coords":
+            x = int(match.group(1))
+            y = int(match.group(2))
+            return "mouse_move", f"{x},{y}", {"x": x, "y": y}
+
+        # Keyboard type: "type hello world"
+        if intent == "keyboard_type":
+            return "keyboard_type", target, {"text": target}
+
+        # Keyboard press: "press enter", "press ctrl c"
+        if intent == "keyboard_press":
+            return "keyboard_press", target, {"key": target}
+
+        # Mouse scroll with direction
+        if intent == "mouse_scroll":
+            return "mouse_scroll", target, {"direction": target}
+
+        # Window minimize/maximize shorthand
+        if intent == "window_minimize_cmd":
+            return "window_minimize", "", {}
+        if intent == "window_maximize_cmd":
+            return "window_maximize", "", {}
+
+        return intent, target, {}

@@ -166,3 +166,117 @@ class TestCommandParserAliases:
         assert result is not None
         assert result.intent == "open_application"
         assert result.target == "the door"
+
+
+class TestCommandParserComputerControl:
+    """Test parsing computer control voice commands."""
+
+    def test_move_mouse_to_coordinates(self, parser):
+        result = parser.parse("move 500 300")
+        assert result is not None
+        assert result.intent == "mouse_move"
+        assert result.target == "500,300"
+
+    def test_go_mouse_to_coordinates(self, parser):
+        result = parser.parse("go mouse to 100 200")
+        assert result is not None
+        assert result.intent == "mouse_move"
+
+    def test_mouse_position(self, parser):
+        result = parser.parse("mouse position")
+        assert result is not None
+        assert result.intent == "mouse_position"
+
+    def test_get_position(self, parser):
+        result = parser.parse("get position")
+        assert result is not None
+        assert result.intent == "mouse_position"
+
+    def test_click(self, parser):
+        result = parser.parse("click")
+        assert result is not None
+        assert result.intent == "mouse_click"
+
+    def test_double_click(self, parser):
+        result = parser.parse("double click")
+        assert result is not None
+        assert result.intent == "mouse_double_click"
+
+    def test_right_click(self, parser):
+        result = parser.parse("right click")
+        assert result is not None
+        assert result.intent == "mouse_right_click"
+
+    def test_scroll_down(self, parser):
+        result = parser.parse("scroll down")
+        assert result is not None
+        assert result.intent == "mouse_scroll"
+        assert result.target == "down"
+
+    def test_scroll_up(self, parser):
+        result = parser.parse("scroll up")
+        assert result is not None
+        assert result.intent == "mouse_scroll"
+        assert result.target == "up"
+
+    def test_type_text(self, parser):
+        result = parser.parse("type hello world")
+        assert result is not None
+        assert result.intent == "keyboard_type"
+        assert result.target == "hello world"
+
+    def test_press_enter(self, parser):
+        result = parser.parse("press enter")
+        assert result is not None
+        assert result.intent == "keyboard_press"
+        assert result.target == "enter"
+
+    def test_take_screenshot(self, parser):
+        result = parser.parse("take screenshot")
+        assert result is not None
+        assert result.intent == "screen_screenshot"
+
+    def test_just_screenshot(self, parser):
+        result = parser.parse("screenshot")
+        assert result is not None
+        assert result.intent == "screen_screenshot"
+
+    def test_screen_size(self, parser):
+        result = parser.parse("screen size")
+        assert result is not None
+        assert result.intent == "screen_size"
+
+    def test_list_windows(self, parser):
+        result = parser.parse("list windows")
+        assert result is not None
+        assert result.intent == "window_list"
+
+    def test_show_window(self, parser):
+        result = parser.parse("show windows")
+        assert result is not None
+        assert result.intent == "window_list"
+
+    def test_active_window(self, parser):
+        result = parser.parse("what is the active window")
+        assert result is not None
+        assert result.intent == "window_active"
+
+    def test_minimize_window(self, parser):
+        result = parser.parse("minimize window")
+        assert result is not None
+        assert result.intent == "window_minimize"
+
+    def test_maximize_window(self, parser):
+        result = parser.parse("maximize window")
+        assert result is not None
+        assert result.intent == "window_maximize"
+
+    def test_hey_popal_take_screenshot(self, parser):
+        result = parser.parse("Hey Popal, take screenshot")
+        assert result is not None
+        assert result.intent == "screen_screenshot"
+
+    def test_hey_popal_click(self, parser):
+        result = parser.parse("Hey Popal, click")
+        assert result is not None
+        assert result.intent == "mouse_click"
