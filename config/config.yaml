@@ -1,0 +1,15 @@
+popal:
+  name: "POPAL"
+  environment: "development"
+  log_level: "INFO"
+
+platform:
+  auto_detect: true
+
+safety:
+  confirmation_required: true
+  emergency_stop_enabled: true
+
+logging:
+  enabled: true
+  directory: "data/logs"

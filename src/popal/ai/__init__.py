@@ -1,0 +1,1 @@
+"""AI module — brain and planner (placeholder for Phase 1+)."""

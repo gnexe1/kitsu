@@ -1,0 +1,1 @@
+"""Core module — command processing, execution, routing, and state."""

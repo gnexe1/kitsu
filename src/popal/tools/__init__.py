@@ -1,0 +1,1 @@
+"""Tools module — base tool interface and registry."""

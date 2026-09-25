@@ -1,0 +1,1 @@
+"""Vision module — placeholder for computer vision (future phase)."""

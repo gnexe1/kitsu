@@ -1,0 +1,1 @@
+"""Voice module — placeholder for speech recognition (Phase 1+)."""

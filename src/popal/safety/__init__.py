@@ -1,0 +1,1 @@
+"""Safety module — policies, permissions, and confirmation."""

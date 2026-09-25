@@ -1,0 +1,1 @@
+"""Memory module — database and long-term storage."""

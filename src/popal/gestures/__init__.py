@@ -1,0 +1,1 @@
+"""Gestures module — placeholder for hand/gesture control (future phase)."""

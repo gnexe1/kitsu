@@ -1,0 +1,1 @@
+"""Platform module — OS detection and platform adapters."""
