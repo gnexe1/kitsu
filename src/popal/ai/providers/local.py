@@ -50,6 +50,11 @@ _PATTERNS: list[tuple[str, str, int | None, dict[str, Any] | None]] = [
     (r"^(?:what(?:'s| is) (?:the\s+)?active\s+window)$", "window_active", None, None),
     (r"^minimize\s+(?:the\s+)?window$", "window_minimize", None, None),
     (r"^maximize\s+(?:the\s+)?window$", "window_maximize", None, None),
+    # Vision
+    (r"^(?:what(?:'s| is) (?:on|in) (?:my|the) (?:screen|display))$", "vision_describe", None, None),
+    (r"^(?:describe|read)\s+(?:the\s+)?(?:screen|display)$", "vision_describe", None, None),
+    (r"^(?:find|locate|where\s+is)\s+(.+?)(?:\s+(?:button|text|icon|link))?$", "vision_find", 1, None),
+    (r"^(?:read|ocr)\s+(?:the\s+)?(?:screen|text)$", "vision_read", None, None),
 ]
 
 

@@ -79,3 +79,12 @@ ai:
   max_plan_steps: 10
   max_context_messages: 10
   max_context_chars: 12000
+
+vision:
+  enabled: false                # disabled by default — privacy-first
+  min_confidence: 0.85
+  max_candidates: 5
+  max_image_width: 3840
+  max_image_height: 2160
+  save_screenshots: false       # never save by default
+  allow_external_processing: false  # no cloud processing by default

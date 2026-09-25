@@ -239,6 +239,23 @@ class Shell:
                 self._handle_ai_execute(line[11:].strip().strip('"').strip("'"))
                 continue
 
+            # Vision commands
+            if cmd_lower == "vision status":
+                self._handle_vision_status()
+                continue
+            if cmd_lower == "vision screenshot":
+                self._handle_vision_screenshot()
+                continue
+            if cmd_lower in ("vision ocr", "vision read"):
+                self._handle_vision_ocr()
+                continue
+            if cmd_lower in ("vision describe",):
+                self._handle_vision_describe()
+                continue
+            if line.lower().startswith("vision find "):
+                self._handle_vision_find(line[12:].strip().strip('"').strip("'"))
+                continue
+
             self._handle_command(line)
 
     def _handle_command(self, line: str) -> None:
@@ -486,6 +503,13 @@ AI commands:
   ai status                            Show AI brain status
   ai plan "<request>"                  Plan (do NOT execute) a request
   ai execute "<request>"               Plan AND execute through safety pipeline
+
+Vision commands:
+  vision status                        Show vision system status
+  vision screenshot                    Capture screenshot (in memory, not saved)
+  vision ocr                           OCR: read visible text on screen
+  vision describe                      Describe what's on screen
+  vision find "<target>"               Find a target by text, color, or type
 """)
 
     def _print_status(self) -> None:
@@ -582,3 +606,113 @@ AI commands:
 
         result = format_response(plan, tuple(step_results))
         print(result.response_text)
+
+    # --- Vision ---
+
+    def _get_vision_service(self):
+        """Lazy-initialize the vision service."""
+        if hasattr(self, '_vision_service') and self._vision_service is not None:
+            return self._vision_service
+        try:
+            from popal.vision.capture import VisionCapture
+            from popal.vision.providers.local import LocalVisionProvider
+            from popal.vision.service import VisionService
+
+            # Create a screen controller for capture
+            if self._platform_info.os == "linux":
+                from popal.computer.providers.linux_provider import LinuxScreenController
+                screen_ctrl = LinuxScreenController()
+            else:
+                from popal.computer.providers.windows_provider import WindowsScreenController
+                screen_ctrl = WindowsScreenController()
+
+            capture = VisionCapture(screen_ctrl)
+            provider = LocalVisionProvider()
+            self._vision_service = VisionService(capture, provider)
+            return self._vision_service
+        except Exception as exc:
+            logger.error("Vision service init failed: %s", exc)
+            return None
+
+    def _handle_vision_status(self) -> None:
+        service = self._get_vision_service()
+        vision_cfg = self._config.get("vision", {})
+        print(f"\nVision:")
+        print(f"  Enabled    : {vision_cfg.get('enabled', False)}")
+        if service:
+            print(f"  Provider   : {service.provider_name}")
+            print(f"  Available  : {service.is_available}")
+        else:
+            print(f"  Available  : False (not initialized)")
+        print(f"  Min conf   : {vision_cfg.get('min_confidence', 0.85)}")
+        print(f"  Save shots : {vision_cfg.get('save_screenshots', False)}")
+        print(f"  External   : {vision_cfg.get('allow_external_processing', False)}")
+        print()
+
+    def _handle_vision_screenshot(self) -> None:
+        service = self._get_vision_service()
+        if not service:
+            print("Vision system not available.")
+            return
+        try:
+            img = service.capture_for_verification()
+            print(f"Screenshot captured: {img.shape[1]}x{img.shape[0]} (in memory, not saved)")
+        except Exception as exc:
+            print(f"Screenshot failed: {exc}")
+
+    def _handle_vision_ocr(self) -> None:
+        service = self._get_vision_service()
+        if not service:
+            print("Vision system not available.")
+            return
+        from popal.vision.types import VisionRequest
+        result = service.process_request(VisionRequest(query="read"))
+        if result.success:
+            print(f"\nOCR Results ({len(result.ocr_results)} text regions):")
+            for ocr in result.ocr_results:
+                print(f"  [{ocr.confidence:.2f}] \"{ocr.text}\" at ({ocr.region.x}, {ocr.region.y})")
+            print()
+        else:
+            print(f"OCR failed: {result.error or result.status.value}")
+
+    def _handle_vision_describe(self) -> None:
+        service = self._get_vision_service()
+        if not service:
+            print("Vision system not available.")
+            return
+        result = service.describe_screen()
+        if result.description:
+            print(f"\n{result.description}\n")
+        else:
+            print("Unable to describe screen.")
+
+    def _handle_vision_find(self, query: str) -> None:
+        if not query:
+            print('Usage: vision find "<target>"')
+            return
+        service = self._get_vision_service()
+        if not service:
+            print("Vision system not available.")
+            return
+        from popal.utils.config import get as config_get
+        min_conf = config_get("vision.min_confidence", 0.85)
+        result = service.find_target(query, min_confidence=min_conf)
+
+        if result.status.value == "found":
+            target = result.best_target
+            if target:
+                print(f"\nTarget: {target.label}")
+                print(f"Confidence: {target.confidence:.2f}")
+                print(f"Region: x={target.region.x} y={target.region.y} w={target.region.width} h={target.region.height}")
+                print(f"Center: x={target.center.x} y={target.center.y}")
+                print(f"Source: {target.source}")
+                print()
+        elif result.status.value == "ambiguous":
+            print(f"\nFound {len(result.targets)} possible targets:")
+            for t in result.targets:
+                print(f"  [{t.confidence:.2f}] \"{t.label}\" at ({t.center.x}, {t.center.y})")
+            print("\nWhich one do you mean?")
+        elif result.status.value == "low_confidence":
+            print(f"\nFound a possible match but confidence is too low to use.")
+        else:
+            print(f"\nI couldn't find \"{query}\" on screen.")

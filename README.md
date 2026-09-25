@@ -1,52 +1,48 @@
 # POPAL — Personal AI Computer Agent
 
-POPAL is a cross-platform personal AI computer agent designed to work as a highly capable desktop assistant.
+POPAL is a cross-platform personal AI computer agent with **Brain + Eyes + Hands**.
 
-## What's New in Phase 3
+## What's New in Phase 4
 
-Phase 3 adds the **AI Brain** — a safe, structured reasoning and planning layer:
+Phase 4 adds **Computer Vision** — screen understanding, OCR, target detection, and visual analysis:
 
-- **AI Provider abstraction** — pluggable providers (local, future: OpenAI, Anthropic, Ollama)
-- **Local deterministic provider** — regex-based, fully offline, no API key required
-- **Structured command schema** — strict validation of intents, parameters, confidence
-- **Multi-step plans** — sequential command plans with configurable step limits
-- **Plan validation** — schema, intent, parameter, dangerous-pattern checks
-- **Ambiguity handling** — clarification/rejection for unsupported requests
-- **Response formatter** — natural-language responses based on actual execution results
-- **Context system** — bounded, safe context (no secrets/screenshots/recordings)
-- **Prompt injection resistance** — model output treated as untrusted
-- All AI commands pass through the existing safety/executor pipeline
+- **Screenshot capture** — reuses Phase 2 screen controller (mss)
+- **OCR** — Tesseract-based text recognition with bounding boxes (graceful degradation)
+- **Target detection** — text, color, and UI element localization via OpenCV
+- **Target matching** — confidence filtering, ambiguity handling, screen bounds validation
+- **Visual verification** — before/after screenshot comparison
+- **Screen description** — analysis-based description of visible content
+- **Privacy controls** — screenshots in memory only, no auto-save/upload, sensitive data redaction
+- **Vision service** — orchestrated capture → analyze → return pipeline (never clicks directly)
+- **AI integration** — AI Brain recognizes "find Settings", "what's on screen" commands
+- All vision observations flow through the existing safety pipeline before any action
 
-### AI Pipeline
+### Vision Pipeline
 
 ```
-Natural Language Request
+User Request ("Find Settings button")
     |
-AI Provider (local/OpenAI/Anthropic)
+AI Brain → vision_find target=Settings
     |
-Structured JSON Output
+Vision Service
     |
-Schema Validation → Dangerous Pattern Check
+Capture Screen (in memory)
     |
-Intent + Parameter Validation
+Privacy Check → OCR + Color + Shape Detection
     |
-Existing Safety Engine
+Target Matching → Confidence Filtering
     |
-Existing Permission + Confirmation
+Vision Result (observations only)
     |
-Tool Registry + Executor
-    |
-Verified Result → Natural Language Response
+Safety Engine → Computer Tools → Action → Verification
 ```
 
-The AI Brain is POPAL's **thinking** layer — the existing safety/tool architecture remains POPAL's **hands and security system**.
+The vision system **observes** — it never directly clicks or types.
 
 ## Architecture
 
 ```
-Voice Input → STT → Deterministic Parser → Command Pipeline
-                      ↓ (fallback)
-                   AI Brain → Structured Plan → Validation → Safety → Execution
+Voice → STT → Parser → AI Brain → Vision → Observations → Safety → Computer → Action
 ```
 
 ### Module Structure
@@ -56,23 +52,27 @@ src/popal/
 ├── core/          Command processing, execution, routing, state
 ├── safety/        Policies, permissions, confirmation
 ├── tools/         Base tool interface, registry
-├── platform/      OS detection, Windows/Linux adapters
-├── computer/      Mouse, keyboard, screen, window, application control
+├── platform/      OS detection, adapters
+├── computer/      Mouse, keyboard, screen, window, application
 ├── voice/         Voice system (push-to-talk, STT, TTS)
-├── ai/            AI Brain (Phase 3)
-│   ├── types.py          AICommand, AIPlan, AIResult
-│   ├── errors.py         AI-specific errors
-│   ├── schemas.py        Intent/parameter schemas
-│   ├── validator.py      Schema + dangerous-pattern validation
-│   ├── context.py        Bounded safe context
-│   ├── provider.py       Abstract AIProvider interface
-│   ├── planner.py        Request → AIPlan pipeline
-│   ├── response.py       Execution result → natural language
+├── ai/            AI Brain (reasoning + planning)
+├── vision/        Computer Vision (Phase 4)
+│   ├── types.py          VisionPoint, VisionRegion, OCRResult, VisionTarget, VisionResult
+│   ├── errors.py         Vision-specific errors
+│   ├── capture.py        Screenshot acquisition (reuses Phase 2)
+│   ├── ocr.py            OCR abstraction + Tesseract provider
+│   ├── detector.py       Contour, color, and template detection (OpenCV)
+│   ├── locator.py        Text, color, and UI element target finding
+│   ├── matcher.py        Confidence filtering and ambiguity resolution
+│   ├── analyzer.py       Screen description via image analysis
+│   ├── verifier.py       Before/after visual change verification
+│   ├── privacy.py        Privacy controls and sensitive data redaction
+│   ├── provider.py       Abstract VisionProvider interface
+│   ├── service.py        VisionService orchestrating the pipeline
 │   └── providers/
-│       └── local.py      Deterministic local provider
-├── vision/        Computer vision (placeholder)
+│       └── local.py      LocalVisionProvider (OpenCV + optional Tesseract)
 ├── gestures/      Hand/gesture control (placeholder)
-├── memory/        SQLite database foundation
+├── memory/        SQLite database
 ├── cli/           Command-line interface
 └── utils/         Logging, configuration, errors
 ```
@@ -84,40 +84,47 @@ cd POPAL
 pip install -e ".[dev,voice]"
 ```
 
-## Running POPAL
+Vision dependencies (opencv-python-headless) are installed automatically.
+
+### Optional: Tesseract OCR
+
+For text recognition, install the Tesseract binary:
 
 ```bash
-python -m popal
+sudo apt install tesseract-ocr
 ```
 
-### CLI Commands — AI Brain
+The vision system works without Tesseract — OCR degrades gracefully.
+
+## CLI Commands — Vision
 
 | Command | Description |
 |---------|-------------|
-| `ai status` | Show AI provider status |
-| `ai plan "open VS Code"` | Plan a command (does NOT execute) |
-| `ai plan "open VS Code and show system info"` | Plan multi-step |
-| `ai execute "open VS Code"` | Plan AND execute through safety pipeline |
+| `vision status` | Show vision system status |
+| `vision screenshot` | Capture screenshot (in memory, not saved) |
+| `vision ocr` | Read visible text on screen |
+| `vision describe` | Describe what's on screen |
+| `vision find "Settings"` | Find a target by text, color, or type |
 
 ## Safety Model
 
-AI-specific safety:
-- Schema validation on all AI output
-- Intent allowlist (only registered POPAL intents)
-- Dangerous pattern detection (`rm -rf`, `sudo`, `os.system()`, etc.)
-- Step count limits (configurable, default 10)
-- Prompt injection resistance
-- Execution verification (responses based on actual tool results)
+Vision-specific safety:
+- Screenshots stay in memory by default (never saved/uploaded)
+- OCR content treated as untrusted (prompt injection protection)
+- Vision-generated coordinates validated against screen bounds
+- Confidence thresholds prevent low-confidence actions
+- Ambiguity handling asks user instead of guessing
+- Vision system has NO click/keyboard methods — observations only
 
 ## Configuration
 
 ```yaml
-ai:
-  enabled: false              # disabled by default
-  provider: "local"           # "local" (deterministic), future: "openai", "anthropic"
-  max_plan_steps: 10
-  max_context_messages: 10
-  max_context_chars: 12000
+vision:
+  enabled: false              # disabled by default (privacy-first)
+  min_confidence: 0.85
+  max_candidates: 5
+  save_screenshots: false
+  allow_external_processing: false
 ```
 
 ## Development Roadmap
@@ -127,8 +134,8 @@ ai:
 | **Phase 0** | Foundation and system architecture | Complete |
 | **Phase 1** | Voice system (speech-to-text) | Complete |
 | **Phase 2** | Computer control foundation | Complete |
-| **Phase 3** | AI Brain (reasoning + planning) | Current |
-| Phase 4 | Computer vision | Planned |
+| **Phase 3** | AI Brain (reasoning + planning) | Complete |
+| **Phase 4** | Computer vision | Current |
 | Phase 5 | Gesture control | Planned |
 
 ## License
