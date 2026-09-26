@@ -256,6 +256,26 @@ class Shell:
                 self._handle_vision_find(line[12:].strip().strip('"').strip("'"))
                 continue
 
+            # Gesture commands
+            if cmd_lower == "gesture status":
+                self._handle_gesture_status()
+                continue
+            if cmd_lower == "gesture devices":
+                self._handle_gesture_devices()
+                continue
+            if cmd_lower == "gesture test":
+                self._handle_gesture_test()
+                continue
+            if cmd_lower == "gesture mappings":
+                self._handle_gesture_mappings()
+                continue
+            if cmd_lower == "gesture privacy":
+                self._handle_gesture_privacy()
+                continue
+            if cmd_lower == "gesture stop":
+                self._handle_gesture_stop()
+                continue
+
             self._handle_command(line)
 
     def _handle_command(self, line: str) -> None:
@@ -510,6 +530,14 @@ Vision commands:
   vision ocr                           OCR: read visible text on screen
   vision describe                      Describe what's on screen
   vision find "<target>"               Find a target by text, color, or type
+
+Gesture commands:
+  gesture status                       Show gesture system status
+  gesture devices                      List available cameras
+  gesture test                         Safe test mode (no computer actions)
+  gesture mappings                     Show gesture-to-action mappings
+  gesture privacy                      Show privacy settings
+  gesture stop                         Stop gesture service
 """)
 
     def _print_status(self) -> None:
@@ -716,3 +744,102 @@ Vision commands:
             print(f"\nFound a possible match but confidence is too low to use.")
         else:
             print(f"\nI couldn't find \"{query}\" on screen.")
+
+    # --- Gestures ---
+
+    def _handle_gesture_status(self) -> None:
+        gesture_cfg = self._config.get("gestures", {})
+        print(f"\nGestures:")
+        print(f"  Enabled   : {gesture_cfg.get('enabled', False)}")
+        print(f"  Camera    : index {gesture_cfg.get('camera_index', 0)}")
+        print(f"  Confidence: {gesture_cfg.get('min_confidence', 0.85)}")
+        print(f"  Debounce  : {gesture_cfg.get('confirmation_frames', 3)} frames")
+        print(f"  Cooldown  : {gesture_cfg.get('cooldown_ms', 500)}ms")
+        print(f"  Save frames: {gesture_cfg.get('save_frames', False)}")
+        print()
+
+    def _handle_gesture_devices(self) -> None:
+        import os
+        devices = [f for f in os.listdir('/dev') if f.startswith('video')]
+        print(f"\nCamera devices: {devices if devices else 'none found'}")
+        print()
+
+    def _handle_gesture_test(self) -> None:
+        """Safe test mode — detect gestures without executing actions."""
+        print("Gesture test mode — no computer actions will be executed.")
+        print("Press Ctrl+C to stop.\n")
+        try:
+            from popal.gestures.providers.local import OpenCVCamera, MediaPipeLandmarkDetector
+            from popal.gestures.recognizer import classify_gesture
+            from popal.gestures.debounce import GestureDebouncer
+            import time
+
+            cam = OpenCVCamera()
+            cam.open()
+            if not cam.is_open():
+                print("Failed to open camera.")
+                return
+
+            detector = MediaPipeLandmarkDetector()
+            if not detector.is_available:
+                print("Hand detector not available (model may be missing).")
+                cam.close()
+                return
+
+            debouncer = GestureDebouncer(confirmation_frames=3)
+            gesture_cfg = self._config.get("gestures", {})
+            min_conf = gesture_cfg.get("min_confidence", 0.85)
+
+            print("Detecting gestures... (show hand to camera)")
+            while True:
+                frame = cam.read_frame()
+                if frame is None:
+                    time.sleep(0.05)
+                    continue
+
+                hands = detector.detect(frame)
+                if hands:
+                    hand = max(hands, key=lambda h: h.confidence)
+                    gesture, confidence = classify_gesture(hand)
+                    if confidence >= min_conf:
+                        confirmed = debouncer.update(gesture)
+                        status = "CONFIRMED" if confirmed else "detecting"
+                        print(f"\r  {gesture.value:<15} conf={confidence:.2f} hand={hand.handedness:<6} [{status}]", end="", flush=True)
+                    else:
+                        debouncer.update(None)
+                        print(f"\r  (low confidence: {confidence:.2f})              ", end="", flush=True)
+                else:
+                    debouncer.update(None)
+                    print(f"\r  (no hand detected)                             ", end="", flush=True)
+
+                time.sleep(1.0 / gesture_cfg.get("target_fps", 20))
+
+        except KeyboardInterrupt:
+            print("\n\nGesture test stopped.")
+        except Exception as exc:
+            print(f"\nGesture test failed: {exc}")
+        finally:
+            try:
+                cam.close()
+                detector.close()
+            except Exception:
+                pass
+
+    def _handle_gesture_mappings(self) -> None:
+        from popal.gestures.policy import GesturePolicy
+        policy = GesturePolicy()
+        print(f"\nGesture mappings:")
+        for gesture, action in policy.get_mappings().items():
+            print(f"  {gesture:<15} -> {action}")
+        print()
+
+    def _handle_gesture_privacy(self) -> None:
+        gesture_cfg = self._config.get("gestures", {})
+        print(f"\nGesture Privacy:")
+        print(f"  Frame saving:        {'ENABLED' if gesture_cfg.get('save_frames', False) else 'DISABLED'}")
+        print(f"  External processing: {'ENABLED' if gesture_cfg.get('allow_external_processing', False) else 'DISABLED'}")
+        print(f"  Recording:           DISABLED")
+        print()
+
+    def _handle_gesture_stop(self) -> None:
+        print("Gesture service stopped.")

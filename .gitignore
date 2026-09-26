@@ -56,3 +56,8 @@ coverage.xml
 
 # Local extracted system libraries
 lib/
+
+# Downloaded AI/ML models
+models/*.task
+models/*.tflite
+models/*.onnx

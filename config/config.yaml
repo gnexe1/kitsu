@@ -88,3 +88,27 @@ vision:
   max_image_height: 2160
   save_screenshots: false       # never save by default
   allow_external_processing: false  # no cloud processing by default
+
+gestures:
+  enabled: false                # disabled by default — privacy-first
+  camera_index: 0
+  max_camera_width: 640
+  max_camera_height: 480
+  target_fps: 20
+  min_confidence: 0.85
+  confirmation_frames: 3
+  cooldown_ms: 500
+  save_frames: false
+  allow_external_processing: false
+  pointer:
+    enabled: false
+    hand: "right"
+    smoothing: 0.5
+    deadzone: 0.02
+  actions:
+    pinch_click: false
+  mappings:
+    OPEN_PALM: emergency_stop
+    PINCH: mouse_click
+    POINT: pointer_move
+    THUMBS_UP: confirm
