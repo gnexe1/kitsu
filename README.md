@@ -1,4 +1,4 @@
-# POPAL — Personal AI Computer Agent
+# KITSU — Personal AI Computer Agent
 
 POPAL is a cross-platform personal AI computer agent with **Voice + Brain + Vision + Gesture + Hands**.
 
