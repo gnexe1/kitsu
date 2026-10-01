@@ -104,6 +104,10 @@ VALID_INTENTS: frozenset[str] = frozenset({
     "application_close",
     "application_list",
     "application_focus",
+    # Application control (Phase 6)
+    "application_action",
+    "application_inspect",
+    "application_registered_list",
 })
 
 

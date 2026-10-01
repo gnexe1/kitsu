@@ -175,6 +175,32 @@ class Shell:
         except Exception as exc:
             logger.warning("Failed to register computer control tools: %s", exc)
 
+        # Phase 6 application control tools
+        self._register_application_tools()
+
+    def _register_application_tools(self) -> None:
+        """Register application control tools and adapters."""
+        from popal.applications.registry import ApplicationRegistry
+        from popal.applications.tools import ApplicationActionTool, ApplicationInspectTool, ApplicationListTool
+        from popal.applications.adapters.vscode import VSCodeAdapter
+        from popal.applications.adapters.chrome import ChromeAdapter
+        from popal.applications.adapters.android_studio import AndroidStudioAdapter
+        from popal.applications.adapters.terminal import TerminalAdapter
+
+        try:
+            self._app_registry = ApplicationRegistry()
+            self._app_registry.register(VSCodeAdapter())
+            self._app_registry.register(ChromeAdapter())
+            self._app_registry.register(AndroidStudioAdapter())
+            self._app_registry.register(TerminalAdapter())
+
+            self._registry.register(ApplicationActionTool(self._app_registry))
+            self._registry.register(ApplicationInspectTool(self._app_registry))
+            self._registry.register(ApplicationListTool(self._app_registry))
+            logger.info("Application control tools registered")
+        except Exception as exc:
+            logger.warning("Failed to register application tools: %s", exc)
+
     def run(self) -> None:
         print(BANNER)
         print(f"  Platform : {self._platform_info.summary()}")
@@ -254,6 +280,30 @@ class Shell:
                 continue
             if line.lower().startswith("vision find "):
                 self._handle_vision_find(line[12:].strip().strip('"').strip("'"))
+                continue
+
+            # Application commands
+            if cmd_lower == "app status":
+                self._handle_app_status()
+                continue
+            if cmd_lower == "app list":
+                self._handle_app_list()
+                continue
+            if line.lower().startswith("app inspect "):
+                self._handle_app_inspect(line[12:].strip())
+                continue
+            if line.lower().startswith("app actions "):
+                self._handle_app_actions(line[12:].strip())
+                continue
+            if line.lower().startswith("app focus "):
+                self._handle_app_focus(line[10:].strip())
+                continue
+            if line.lower().startswith("app execute "):
+                parts = line[12:].strip().split(None, 2)
+                app_id = parts[0] if parts else ""
+                action = parts[1] if len(parts) > 1 else ""
+                params = parts[2] if len(parts) > 2 else ""
+                self._handle_app_execute(app_id, action, params)
                 continue
 
             # Gesture commands
@@ -530,6 +580,14 @@ Vision commands:
   vision ocr                           OCR: read visible text on screen
   vision describe                      Describe what's on screen
   vision find "<target>"               Find a target by text, color, or type
+
+Application commands:
+  app status                           Show application control status
+  app list                             List registered applications
+  app inspect <app_id>                 Inspect application state
+  app actions <app_id>                 List supported actions for an app
+  app focus <app_id>                   Focus an application
+  app execute <app_id> <action> [params] Execute an application action
 
 Gesture commands:
   gesture status                       Show gesture system status
@@ -843,3 +901,88 @@ Gesture commands:
 
     def _handle_gesture_stop(self) -> None:
         print("Gesture service stopped.")
+
+    # --- Applications ---
+
+    def _handle_app_status(self) -> None:
+        if hasattr(self, '_app_registry'):
+            apps = self._app_registry.list_registered()
+            print(f"\nApplication Control:")
+            print(f"  Registered: {len(apps)} adapters")
+            print(f"  Apps: {', '.join(apps)}")
+        else:
+            print("Application control not initialized.")
+        print()
+
+    def _handle_app_list(self) -> None:
+        if not hasattr(self, '_app_registry'):
+            print("Application control not initialized.")
+            return
+        apps = self._app_registry.list_all_info()
+        print(f"\nRegistered applications ({len(apps)}):")
+        for info in apps:
+            running = ""
+            try:
+                adapter = self._app_registry.get(info.app_id)
+                running = " [RUNNING]" if adapter.is_running() else ""
+            except Exception:
+                pass
+            print(f"  {info.app_id:<20} {info.name}{running}")
+        print()
+
+    def _handle_app_inspect(self, app_id: str) -> None:
+        if not app_id:
+            print("Usage: app inspect <app_id>")
+            return
+        cmd = Command(intent="application_inspect", parameters={"application": app_id},
+                      source=CommandSource.CLI)
+        result = self._executor.execute(cmd)
+        if result.success:
+            print(json.dumps(result.data, indent=2))
+        else:
+            print(f"FAILED: {result.message}")
+
+    def _handle_app_actions(self, app_id: str) -> None:
+        if not hasattr(self, '_app_registry') or not app_id:
+            print("Usage: app actions <app_id>")
+            return
+        try:
+            adapter = self._app_registry.get(app_id)
+            actions = adapter.get_supported_actions()
+            print(f"\n{adapter.app_info.name} actions ({len(actions)}):")
+            for a in actions:
+                print(f"  {a.action_id:<20} risk={a.risk_level.value:<12} {a.description}")
+            print()
+        except Exception as exc:
+            print(f"Error: {exc}")
+
+    def _handle_app_focus(self, app_id: str) -> None:
+        if not app_id:
+            print("Usage: app focus <app_id>")
+            return
+        cmd = Command(intent="application_action",
+                      parameters={"application": app_id, "action": "focus"},
+                      source=CommandSource.CLI)
+        result = self._executor.execute(cmd)
+        print(f"{'OK' if result.success else 'FAILED'}: {result.message}")
+
+    def _handle_app_execute(self, app_id: str, action: str, params_str: str) -> None:
+        if not app_id or not action:
+            print("Usage: app execute <app_id> <action> [params_json]")
+            return
+        params: dict = {}
+        if params_str:
+            try:
+                params = json.loads(params_str)
+            except json.JSONDecodeError:
+                params = {"target": params_str}
+        params["application"] = app_id
+        params["action"] = action
+        cmd = Command(intent="application_action", parameters=params, source=CommandSource.CLI)
+        result = self._executor.execute(cmd)
+        if result.success:
+            print(f"OK: {result.message}")
+            if result.data:
+                print(json.dumps(result.data, indent=2))
+        else:
+            print(f"FAILED [{result.error}]: {result.message}")

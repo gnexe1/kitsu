@@ -40,6 +40,10 @@ _INTENT_TO_TOOL: dict[str, str] = {
     "application_close": "application_close",
     "application_list": "application_list",
     "application_focus": "application_focus",
+    # Application control (Phase 6)
+    "application_action": "application_action",
+    "application_inspect": "application_inspect",
+    "application_registered_list": "application_registered_list",
 }
 
 
